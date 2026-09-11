@@ -22,14 +22,15 @@ role-based access control and an admin portal.
 | Method | Command (from project root) | Open in browser |
 |--------|------------------------------|-----------------|
 | **With Docker** (recommended) | `docker compose up -d --build` | **http://localhost:8800** |
-| **Without Docker** (Python) | `cd backend` → `pip install -r requirements.txt` → `uvicorn app.main:app --host 0.0.0.0 --port 8000` | **http://localhost:8000** |
+| **Without Docker** (Python) | `pip install -r backend/requirements.txt` → `uvicorn backend.app.main:app --host 0.0.0.0 --port 8800` | **http://localhost:8800** |
 
 The default admin account is `admin@scholastic.local` / `Adm1n!123` (only when
 `ADMIN_EMAIL` is set in `docker-compose.yml` — change these in the Profile page after first login).
 
-> **Ports at a glance:** **Docker = 8800**, **no Docker = 8000**. The FastAPI app always listens on
-> port **8000** inside the container; Compose maps that to port **8800** on your machine
-> (`"8800:8000"`). Change the port by editing the **left** number — see [Changing the port](#changing-the-port).
+> **Ports at a glance:** **both ways run on port 8800** on your machine, so you open
+> **http://localhost:8800** either way. Inside the Docker container the app listens on
+> port **8000**, which Compose maps to **8800** on your machine (`"8800:8000"`). If you
+> change the port, only edit the **left** number — see [Changing the port](#changing-the-port).
 
 ## Technology
 
@@ -125,23 +126,25 @@ docker compose down -v        # stop AND delete all data (database + resumes)
 
 ## Option B: Without Docker (Python)
 
-Runs on port **8000**.
+Runs on port **8800** — same URL as the Docker option.
 
 1. Install Python 3.11+ from https://www.python.org/ (check "Add python.exe to PATH").
 2. From the project root:
 
    ```powershell
-   cd backend
-   pip install -r requirements.txt
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   pip install -r backend/requirements.txt
+   uvicorn backend.app.main:app --host 0.0.0.0 --port 8800
    ```
 
-3. Open **http://localhost:8000**.
+3. Open **http://localhost:8800** in your browser.
+
+> The `requirements.txt` file lives at `backend/requirements.txt` — the command above
+> points to it from the project root (no `cd` needed).
 
 > **Data folder:** the app first tries `/data` (not writable on Windows) and falls back
-> to `./data` **relative to the current working directory** — so running from `backend/`
-> creates `backend/data\` (SQLite DB + resumes). To keep data in a known place, set
-> `$env:DATA_DIR = "$PWD\data"` (or anywhere you like) before starting.
+> to `./data` relative to where you start the server — running from the project root
+> creates a `data\` folder there (SQLite DB + resumes). To keep data in a known place,
+> set `$env:DATA_DIR = "C:\path\to\data"` before starting.
 
 ---
 
@@ -168,16 +171,15 @@ docker compose up -d --build
 
 ## Option B: Without Docker (Python)
 
-Runs on port **8000**.
+Runs on port **8800** — same URL as the Docker option.
 
 ```bash
-cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-mkdir -p ../data
-DATA_DIR=../data uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-# open http://localhost:8000
+pip install -r backend/requirements.txt
+mkdir -p data
+DATA_DIR=$PWD/data uvicorn backend.app.main:app --host 0.0.0.0 --port 8800 &
+# open http://localhost:8800
 ```
 
 Running as a background service with systemd:
@@ -189,9 +191,9 @@ Description=Hiring Tracker
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/hiring-tracker/backend
+WorkingDirectory=/opt/hiring-tracker
 Environment=DATA_DIR=/opt/hiring-tracker/data
-ExecStart=/opt/hiring-tracker/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/hiring-tracker/.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8800
 Restart=unless-stopped
 
 [Install]
@@ -201,7 +203,7 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now hiringtracker
-# open http://localhost:8000
+# open http://localhost:8800
 ```
 
 ---
@@ -343,7 +345,9 @@ Back it up by copying the `data/` folder; it is NOT part of the container.
 
 ## Changing the port
 
-The FastAPI app always listens on **port 8000** (the `uvicorn` CMD in the Dockerfile).
+By default both paths serve the app on **port 8800** on your machine. The FastAPI app
+always listens on **port 8000** *inside the Docker container* (the `uvicorn` CMD in the
+Dockerfile); the project's port for outside access is **8800**.
 
 - **With Docker:** change only the **left** number in `docker-compose.yml` (the host side);
   the app stays on 8000 inside the container:
@@ -357,7 +361,7 @@ The FastAPI app always listens on **port 8000** (the `uvicorn` CMD in the Docker
   docker compose up -d      # recreates the container; no rebuild needed
   ```
 
-- **Without Docker:** pass `--port <N>` to uvicorn, e.g. `uvicorn app.main:app --port 8800`
+- **Without Docker:** pass `--port <N>` to uvicorn, e.g. `uvicorn backend.app.main:app --port 8800`
   (or use port 80 with a reverse proxy).
 
 ## Accounts, roles and policy
@@ -460,7 +464,7 @@ session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 
 | Symptom | Fix |
 |---------|-----|
-| Site not reachable on a chosen port | With Docker the mapping must be `host-port:8000` (the app listens on 8000); e.g. `"8800:8000"` → http://localhost:8800. Without Docker pass `--port` to uvicorn. |
+| Site not reachable on a chosen port | Both paths serve the app on **port 8800**. With Docker, the compose mapping must be `host-port:8000` (the app listens on 8000 inside the container), e.g. `"8800:8000"` → http://localhost:8800. Without Docker, pass `--port 8800` to uvicorn |
 | Port already in use error | Something is already bound to the host port; stop it or change the host port on the left side of the compose mapping |
 | Login page shows stale layout | Hard refresh (Ctrl+F5); cache-busted assets are `app.js?v=27`, `styles.css?v=14` |
 | Can't log in after a password reset | Passwords are hashed — use Admin → Users → "Reset pw" and share the new password (shown once) |
