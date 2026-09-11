@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hiring Tracker</title>
+<style>
+  :root {
+    --bg: #0F1720;
+    --panel: #16212C;
+    --panel-2: #1C2A36;
+    --border: #263241;
+    --border-soft: #1E2B37;
+    --text: #E6EDF3;
+    --muted: #8B98A5;
+    --dim: #5C6B7A;
+    --cyan: #2DD4BF;
+    --cyan-dim: #123B36;
+    --amber: #F5A623;
+    --amber-dim: #3F2E0C;
+    --green: #4ADE80;
+    --green-dim: #143622;
+    --red: #F0645C;
+    --red-dim: #3A1917;
+    --violet: #A78BFA;
+    --violet-dim: #2A2340;
+    --mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 32px 24px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header { margin-bottom: 28px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--cyan);
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  .storage-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .storage-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--dim);
+  }
+  .storage-badge.mode-s3 .dot { background: var(--green); }
+  .storage-badge.mode-claude .dot { background: var(--cyan); }
+  .storage-badge.mode-local .dot { background: var(--amber); }
+  .storage-badge.mode-error .dot { background: var(--red); }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin: 24px 0 28px;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .stat:hover { border-color: var(--border-soft); }
+  .stat.active { border-color: var(--cyan); }
+  .stat .n { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+  .stat .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  input[type="text"], select {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: var(--sans);
+    outline: none;
+  }
+  input[type="text"]:focus, select:focus { border-color: var(--cyan); }
+  input[type="text"] { flex: 1; min-width: 180px; }
+  select { cursor: pointer; }
+  .btn {
+    background: var(--cyan);
+    color: #06201C;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--text); border-color: var(--border-soft); }
+
+  .clear-filters {
+    font-size: 12px;
+    color: var(--cyan);
+    cursor: pointer;
+    text-decoration: none;
+    font-family: var(--mono);
+  }
+
+  .roles-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .roles-panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+  }
+  .role-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .role-row:last-child { border-bottom: none; }
+  .role-row input[type="text"] { flex: 1; }
+  .role-row .role-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    min-width: 70px;
+  }
+  .role-row .del-btn { flex-shrink: 0; }
+  .roles-add-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-soft);
+  }
+  .roles-add-row input { flex: 1; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    color: var(--dim);
+    font-family: var(--mono);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    padding: 0 12px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border-soft);
+  }
+  tbody tr:hover { background: var(--panel); }
+  tbody td { padding: 12px; font-size: 14px; vertical-align: middle; }
+  .name { font-weight: 500; }
+  .name.empty { color: var(--dim); font-style: italic; font-weight: 400; }
+  .role-tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .vendor-tag {
+    font-size: 12.5px;
+    color: var(--violet);
+    display: inline-block;
+  }
+  .vendor-tag.empty { color: var(--dim); font-style: italic; }
+  .status-select {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    border-radius: 20px;
+    padding: 5px 10px 5px 12px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 10px;
+  }
+  .notes-cell { color: var(--muted); font-size: 12.5px; max-width: 200px; }
+  .notes-cell input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-family: var(--sans);
+    outline: none;
+    padding: 2px 0;
+  }
+  .notes-cell input:focus { color: var(--text); }
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .del-btn:hover { color: var(--red); background: var(--red-dim); }
+
+  .btn.small {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .resume-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .resume-file {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .resume-name {
+    color: var(--cyan);
+    font-size: 12.5px;
+    cursor: pointer;
+    text-decoration: none;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .resume-name:hover { text-decoration: underline; }
+  .resume-remove {
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+  .resume-remove:hover { color: var(--red); }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .add-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1.2fr 1.2fr 1fr 1.1fr 1.4fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .add-row input, .add-row select { width: 100%; }
+  .add-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 20px;
+    letter-spacing: 0.03em;
+  }
+
+  footer {
+    margin-top: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    text-align: right;
+  }
+
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .add-row { grid-template-columns: 1fr; }
+    table, thead { display: block; }
+    thead { display: none; }
+    tbody tr { display: block; padding: 10px 0; }
+    tbody td { display: flex; justify-content: space-between; padding: 6px 4px; }
+    tbody td::before { content: attr(data-label); color: var(--dim); font-size: 11px; font-family: var(--mono); margin-right: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">RECRUITING / SECURITY / DEVOPS / DEVSECOPS</div>
+    <h1>Hiring tracker</h1>
+    <p class="sub">Track candidates and open roles in one place. Click a stat to filter, click a status to update it.</p>
+    <div class="storage-badge" id="storageBadge"></div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search by name or role..." />
+    <select id="roleFilter"></select>
+    <select id="statusFilter"></select>
+    <select id="vendorFilter"></select>
+    <span class="clear-filters" id="clearFilters">Clear filters</span>
+    <button class="btn ghost" id="manageRolesBtn" style="margin-left:auto;">Manage roles</button>
+  </div>
+
+  <div class="roles-panel" id="rolesPanel" style="display:none;">
+    <div class="roles-panel-title">Roles</div>
+    <div id="rolesList"></div>
+    <div class="roles-add-row">
+      <input type="text" id="newRoleName" placeholder="New role name" />
+      <button class="btn" id="addRoleBtn">Add role</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:17%">Candidate</th>
+        <th style="width:14%">Role</th>
+        <th style="width:12%">Vendor</th>
+        <th style="width:16%">Status</th>
+        <th style="width:13%">Resume</th>
+        <th style="width:22%">Notes</th>
+        <th style="width:6%"></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <input type="file" id="resumeFileInput" accept=".pdf,.doc,.docx" style="display:none;" />
+  <div class="empty-state" id="emptyState" style="display:none;">No candidates match these filters.</div>
+
+  <div class="add-row">
+    <div>
+      <div class="add-label">CANDIDATE NAME</div>
+      <input type="text" id="newName" placeholder="e.g. Priya K" />
+    </div>
+    <div>
+      <div class="add-label">ROLE</div>
+      <select id="newRole"></select>
+    </div>
+    <div>
+      <div class="add-label">VENDOR</div>
+      <input type="text" id="newVendor" placeholder="e.g. Naukri, in-house" />
+    </div>
+    <div>
+      <div class="add-label">STATUS</div>
+      <select id="newStatus"></select>
+    </div>
+    <div>
+      <div class="add-label">NOTES</div>
+      <input type="text" id="newNotes" placeholder="Optional" />
+    </div>
+    <div>
+      <button class="btn" id="addBtn" style="margin-top:20px;">Add</button>
+    </div>
+  </div>
+
+  <footer id="footer"></footer>
+
+</div>
+
+<script>
+const STATUSES = [
+  { key: "Sourcing",             color: "#8B98A5", bg: "#1C2A36" },
+  { key: "Screening",            color: "#A78BFA", bg: "#2A2340" },
+  { key: "Interview Scheduled",  color: "#F5A623", bg: "#3F2E0C" },
+  { key: "Interview Completed",  color: "#2DD4BF", bg: "#123B36" },
+  { key: "Offer Extended",       color: "#4ADE80", bg: "#143622" },
+  { key: "Hired",                color: "#4ADE80", bg: "#143622" },
+  { key: "On Hold",              color: "#8B98A5", bg: "#1C2A36" },
+  { key: "Rejected",             color: "#F0645C", bg: "#3A1917" }
+];
+
+const STORAGE_KEY = "tracker-data";
+let candidates = [];
+let roles = [];
+let storageMode = "local";
+let pendingUploadCandidateId = null;
+let filters = { search: "", role: "all", status: "all", vendor: "all" };
+
+const seedData = [
+  { name: "Dharsann A", role: "L1 Analyst", vendor: "", status: "Sourcing", notes: "", resume: null },
+  { name: "Aswath", role: "Data / AI", vendor: "", status: "Interview Scheduled", notes: "", resume: null },
+  { name: "Sruthi", role: "Data / AI", vendor: "", status: "Interview Scheduled", notes: "", resume: null },
+  { name: "", role: "SOC L1 role", vendor: "", status: "Sourcing", notes: "Open role — sourcing candidates", resume: null },
+  { name: "", role: "WAF JD", vendor: "", status: "Sourcing", notes: "Open role — sourcing candidates", resume: null },
+  { name: "", role: "VM", vendor: "", status: "Sourcing", notes: "Open role — sourcing candidates", resume: null }
+];
+
+const defaultRoles = ["L1 Analyst", "Data / AI", "SOC L1 role", "WAF JD", "VM"];
+
+// Fill these in after deploying the CloudFormation stack to enable shared
+// S3-backed storage when this file is hosted outside claude.ai. Leave
+// enabled: false to keep using per-device local storage instead.
+const REMOTE = {
+  enabled: false,
+  region: "us-east-1",
+  identityPoolId: "REPLACE_WITH_COGNITO_IDENTITY_POOL_ID",
+  bucket: "REPLACE_WITH_BUCKET_NAME",
+  key: "data/tracker-data.json",
+  resumePrefix: "resumes/"
+};
+
+let s3Client = null;
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function statusMeta(key) {
+  return STATUSES.find(s => s.key === key) || STATUSES[0];
+}
+
+function loadAwsSdk() {
+  return new Promise((resolve, reject) => {
+    if (window.AWS) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://sdk.amazonaws.com/js/aws-sdk-2.1691.0.min.js";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Could not load AWS SDK"));
+    document.head.appendChild(s);
+  });
+}
+
+async function initStorage() {
+  if (typeof window.storage !== "undefined" && window.storage) {
+    return "claude";
+  }
+  if (REMOTE.enabled) {
+    try {
+      await loadAwsSdk();
+      AWS.config.region = REMOTE.region;
+      AWS.config.credentials = new AWS.CognitoIdentityCredentials({ IdentityPoolId: REMOTE.identityPoolId });
+      await AWS.config.credentials.getPromise();
+      s3Client = new AWS.S3({ apiVersion: "2006-03-01" });
+      return "s3";
+    } catch (e) {
+      console.error("S3 storage unavailable, falling back to local", e);
+      return "local";
+    }
+  }
+  return "local";
+}
+
+function remoteLoad() {
+  return new Promise((resolve) => {
+    s3Client.getObject({ Bucket: REMOTE.bucket, Key: REMOTE.key }, (err, data) => {
+      if (err) { resolve(null); return; }
+      try {
+        resolve(JSON.parse(new TextDecoder("utf-8").decode(data.Body)));
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function remoteSave(payload) {
+  return new Promise((resolve, reject) => {
+    s3Client.putObject({
+      Bucket: REMOTE.bucket,
+      Key: REMOTE.key,
+      Body: JSON.stringify(payload),
+      ContentType: "application/json",
+      ServerSideEncryption: "aws:kms"
+    }, (err) => { if (err) reject(err); else resolve(); });
+  });
+}
+
+function updateStorageBadge(mode) {
+  const badge = document.getElementById("storageBadge");
+  const labels = {
+    claude: "Saved to this chat",
+    s3: "Saved to shared bucket — synced with your team",
+    local: "Saved to this browser only — not shared with your team",
+    error: "Not saving — check your connection"
+  };
+  badge.className = "storage-badge mode-" + mode;
+  badge.innerHTML = `<span class="dot"></span>${labels[mode] || labels.local}`;
+}
+
+async function loadAll() {
+  storageMode = await initStorage();
+
+  let payload = null;
+  try {
+    if (storageMode === "claude") {
+      const r = await window.storage.get(STORAGE_KEY, false);
+      payload = r ? JSON.parse(r.value) : null;
+    } else if (storageMode === "s3") {
+      payload = await remoteLoad();
+    } else {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      payload = raw ? JSON.parse(raw) : null;
+    }
+  } catch (e) {
+    console.error("Load error", e);
+    payload = null;
+  }
+
+  if (payload && Array.isArray(payload.candidates)) {
+    candidates = payload.candidates;
+    roles = Array.isArray(payload.roles) ? payload.roles : [];
+  } else {
+    candidates = seedData.map(c => ({ id: uid(), ...c }));
+    roles = [...defaultRoles];
+  }
+  candidates.forEach(c => { if (c.vendor === undefined) c.vendor = ""; if (c.resume === undefined) c.resume = null; });
+  if (roles.length === 0) {
+    roles = [...new Set([...defaultRoles, ...candidates.map(c => c.role).filter(Boolean)])];
+  }
+
+  updateStorageBadge(storageMode);
+  render();
+  if (!payload) await saveAll();
+}
+
+async function saveAll() {
+  const payload = { candidates, roles, updatedAt: new Date().toISOString() };
+  try {
+    if (storageMode === "claude") {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
+    } else if (storageMode === "s3") {
+      await remoteSave(payload);
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+    updateStorageBadge(storageMode);
+  } catch (e) {
+    console.error("Save error", e);
+    updateStorageBadge("error");
+  }
+}
+
+const MAX_INLINE_RESUME_BYTES = 3 * 1024 * 1024; // 3MB - keeps well under Claude/local storage limits after base64 inflation
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadResume(candidate, file) {
+  if (storageMode !== "s3" && file.size > MAX_INLINE_RESUME_BYTES) {
+    alert(
+      "That file is too large for this storage mode (" +
+      Math.round(file.size / 1024 / 1024 * 10) / 10 +
+      "MB). Files over 3MB need shared S3 storage enabled - see the REMOTE config at the top of the script."
+    );
+    return;
+  }
+
+  try {
+    if (storageMode === "s3") {
+      const key = REMOTE.resumePrefix + candidate.id + "-" + sanitizeFilename(file.name);
+      await new Promise((resolve, reject) => {
+        s3Client.putObject({
+          Bucket: REMOTE.bucket,
+          Key: key,
+          Body: file,
+          ContentType: file.type || "application/octet-stream",
+          ServerSideEncryption: "aws:kms"
+        }, (err) => err ? reject(err) : resolve());
+      });
+      candidate.resume = { name: file.name, mode: "s3", ref: key };
+    } else {
+      const dataUrl = await fileToDataUrl(file);
+      const ref = "resume:" + candidate.id;
+      if (storageMode === "claude") {
+        await window.storage.set(ref, dataUrl, false);
+      } else {
+        localStorage.setItem(ref, dataUrl);
+      }
+      candidate.resume = { name: file.name, mode: storageMode, ref };
+    }
+    await saveAll();
+    render();
+  } catch (e) {
+    console.error("Resume upload failed", e);
+    alert("Couldn't upload that resume. Check the console for details.");
+  }
+}
+
+async function viewResume(candidate) {
+  const r = candidate.resume;
+  if (!r) return;
+  try {
+    if (r.mode === "s3") {
+      const url = s3Client.getSignedUrl("getObject", { Bucket: REMOTE.bucket, Key: r.ref, Expires: 300 });
+      window.open(url, "_blank");
+    } else if (r.mode === "claude") {
+      const res = await window.storage.get(r.ref, false);
+      if (res) window.open(res.value, "_blank");
+      else alert("Couldn't find that resume - it may have been cleared from storage.");
+    } else {
+      const dataUrl = localStorage.getItem(r.ref);
+      if (dataUrl) window.open(dataUrl, "_blank");
+      else alert("Couldn't find that resume in this browser's storage.");
+    }
+  } catch (e) {
+    console.error("Resume view failed", e);
+    alert("Couldn't open that resume. Check the console for details.");
+  }
+}
+
+async function deleteResume(candidate) {
+  const r = candidate.resume;
+  if (!r) return;
+  try {
+    if (r.mode === "s3") {
+      await new Promise((resolve, reject) => {
+        s3Client.deleteObject({ Bucket: REMOTE.bucket, Key: r.ref }, (err) => err ? reject(err) : resolve());
+      });
+    } else if (r.mode === "claude") {
+      await window.storage.delete(r.ref, false);
+    } else {
+      localStorage.removeItem(r.ref);
+    }
+  } catch (e) {
+    console.error("Resume delete failed", e);
+  }
+  candidate.resume = null;
+  await saveAll();
+  render();
+}
+
+function populateSelect(select, options, includeAll, allLabel) {
+  select.innerHTML = "";
+  if (includeAll) {
+    const opt = document.createElement("option");
+    opt.value = "all";
+    opt.textContent = allLabel;
+    select.appendChild(opt);
+  }
+  options.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o;
+    opt.textContent = o;
+    select.appendChild(opt);
+  });
+}
+
+function getRoles() {
+  return [...roles].sort();
+}
+
+function getVendors() {
+  const vendors = [...new Set(candidates.map(c => c.vendor).filter(Boolean))];
+  return vendors.sort();
+}
+
+function renderStats() {
+  const statsEl = document.getElementById("stats");
+  statsEl.innerHTML = "";
+
+  const totalCard = document.createElement("div");
+  totalCard.className = "stat" + (filters.status === "all" ? " active" : "");
+  totalCard.innerHTML = `<div class="n">${candidates.length}</div><div class="l">All</div>`;
+  totalCard.onclick = () => { filters.status = "all"; syncControls(); render(); };
+  statsEl.appendChild(totalCard);
+
+  const counts = {};
+  STATUSES.forEach(s => counts[s.key] = 0);
+  candidates.forEach(c => { if (counts[c.status] !== undefined) counts[c.status]++; });
+
+  const priority = ["Interview Scheduled", "Interview Completed", "Screening", "Offer Extended", "Sourcing"];
+  priority.forEach(key => {
+    if (counts[key] === undefined) return;
+    const card = document.createElement("div");
+    card.className = "stat" + (filters.status === key ? " active" : "");
+    card.innerHTML = `<div class="n" style="color:${statusMeta(key).color}">${counts[key]}</div><div class="l">${key}</div>`;
+    card.onclick = () => { filters.status = filters.status === key ? "all" : key; syncControls(); render(); };
+    statsEl.appendChild(card);
+  });
+}
+
+function syncControls() {
+  document.getElementById("statusFilter").value = filters.status;
+  document.getElementById("roleFilter").value = filters.role;
+  document.getElementById("vendorFilter").value = filters.vendor;
+  document.getElementById("search").value = filters.search;
+}
+
+function applyFilters(list) {
+  return list.filter(c => {
+    if (filters.status !== "all" && c.status !== filters.status) return false;
+    if (filters.role !== "all" && c.role !== filters.role) return false;
+    if (filters.vendor !== "all" && c.vendor !== filters.vendor) return false;
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const hay = (c.name + " " + c.role + " " + (c.vendor || "")).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderTable() {
+  const tbody = document.getElementById("tbody");
+  const emptyState = document.getElementById("emptyState");
+  tbody.innerHTML = "";
+
+  const filtered = applyFilters(candidates);
+
+  if (filtered.length === 0) {
+    emptyState.style.display = "block";
+    return;
+  }
+  emptyState.style.display = "none";
+
+  filtered.forEach(c => {
+    const meta = statusMeta(c.status);
+    const tr = document.createElement("tr");
+
+    const nameTd = document.createElement("td");
+    nameTd.setAttribute("data-label", "Candidate");
+    nameTd.innerHTML = c.name
+      ? `<span class="name">${escapeHtml(c.name)}</span>`
+      : `<span class="name empty">Unassigned</span>`;
+    tr.appendChild(nameTd);
+
+    const roleTd = document.createElement("td");
+    roleTd.setAttribute("data-label", "Role");
+    const roleSel = document.createElement("select");
+    roleSel.className = "status-select";
+    roleSel.style.color = "var(--muted)";
+    roleSel.style.background = "var(--panel-2)";
+    const allRoleOptions = c.role && !roles.includes(c.role) ? [...roles, c.role] : roles;
+    [...allRoleOptions].sort().forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r;
+      opt.textContent = r;
+      if (r === c.role) opt.selected = true;
+      roleSel.appendChild(opt);
+    });
+    roleSel.onchange = async (e) => {
+      c.role = e.target.value;
+      await saveAll();
+      render();
+    };
+    roleTd.appendChild(roleSel);
+    tr.appendChild(roleTd);
+
+    const vendorTd = document.createElement("td");
+    vendorTd.setAttribute("data-label", "Vendor");
+    vendorTd.innerHTML = c.vendor
+      ? `<span class="vendor-tag">${escapeHtml(c.vendor)}</span>`
+      : `<span class="vendor-tag empty">—</span>`;
+    tr.appendChild(vendorTd);
+
+    const statusTd = document.createElement("td");
+    statusTd.setAttribute("data-label", "Status");
+    const sel = document.createElement("select");
+    sel.className = "status-select";
+    sel.style.color = meta.color;
+    sel.style.background = meta.bg;
+    STATUSES.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.key;
+      opt.textContent = s.key;
+      if (s.key === c.status) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = async (e) => {
+      c.status = e.target.value;
+      await saveAll();
+      render();
+    };
+    statusTd.appendChild(sel);
+    tr.appendChild(statusTd);
+
+    const resumeTd = document.createElement("td");
+    resumeTd.setAttribute("data-label", "Resume");
+    resumeTd.className = "resume-cell";
+    if (c.resume) {
+      const wrap = document.createElement("div");
+      wrap.className = "resume-file";
+      const link = document.createElement("span");
+      link.className = "resume-name";
+      link.textContent = c.resume.name;
+      link.title = c.resume.name + " — click to view";
+      link.onclick = () => viewResume(c);
+      wrap.appendChild(link);
+      const rm = document.createElement("button");
+      rm.className = "resume-remove";
+      rm.innerHTML = "&times;";
+      rm.title = "Remove resume";
+      rm.onclick = () => deleteResume(c);
+      wrap.appendChild(rm);
+      resumeTd.appendChild(wrap);
+    } else {
+      const uploadBtn = document.createElement("button");
+      uploadBtn.className = "btn ghost small";
+      uploadBtn.textContent = "Upload";
+      uploadBtn.onclick = () => {
+        pendingUploadCandidateId = c.id;
+        document.getElementById("resumeFileInput").click();
+      };
+      resumeTd.appendChild(uploadBtn);
+    }
+    tr.appendChild(resumeTd);
+
+    const notesTd = document.createElement("td");
+    notesTd.setAttribute("data-label", "Notes");
+    notesTd.className = "notes-cell";
+    const notesInput = document.createElement("input");
+    notesInput.type = "text";
+    notesInput.value = c.notes || "";
+    notesInput.placeholder = "Add a note...";
+    notesInput.onblur = async (e) => {
+      c.notes = e.target.value;
+      await saveAll();
+    };
+    notesTd.appendChild(notesInput);
+    tr.appendChild(notesTd);
+
+    const actionTd = document.createElement("td");
+    actionTd.setAttribute("data-label", "");
+    const delBtn = document.createElement("button");
+    delBtn.className = "del-btn";
+    delBtn.innerHTML = "&times;";
+    delBtn.title = "Remove";
+    delBtn.onclick = async () => {
+      candidates = candidates.filter(x => x.id !== c.id);
+      await saveAll();
+      render();
+    };
+    actionTd.appendChild(delBtn);
+    tr.appendChild(actionTd);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function renderFooter() {
+  const footer = document.getElementById("footer");
+  const shown = applyFilters(candidates).length;
+  footer.textContent = `Showing ${shown} of ${candidates.length}`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderRolesPanel() {
+  const list = document.getElementById("rolesList");
+  list.innerHTML = "";
+  if (roles.length === 0) {
+    list.innerHTML = `<div style="color:var(--muted); font-size:13px; padding:6px 0;">No roles yet. Add one below.</div>`;
+    return;
+  }
+  [...roles].sort().forEach(r => {
+    const count = candidates.filter(c => c.role === r).length;
+    const row = document.createElement("div");
+    row.className = "role-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = r;
+    input.onblur = async (e) => {
+      const newName = e.target.value.trim();
+      if (!newName || newName === r) { e.target.value = r; return; }
+      if (roles.includes(newName)) { alert("A role with that name already exists."); e.target.value = r; return; }
+      roles = roles.map(x => x === r ? newName : x);
+      candidates.forEach(c => { if (c.role === r) c.role = newName; });
+      await saveAll();
+      render();
+    };
+    row.appendChild(input);
+
+    const countEl = document.createElement("span");
+    countEl.className = "role-count";
+    countEl.textContent = count === 1 ? "1 candidate" : `${count} candidates`;
+    row.appendChild(countEl);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "del-btn";
+    delBtn.innerHTML = "&times;";
+    delBtn.title = count > 0 ? "Reassign candidates before deleting" : "Delete role";
+    delBtn.disabled = count > 0;
+    if (count > 0) delBtn.style.opacity = "0.3";
+    delBtn.onclick = async () => {
+      roles = roles.filter(x => x !== r);
+      await saveAll();
+      render();
+    };
+    row.appendChild(delBtn);
+
+    list.appendChild(row);
+  });
+}
+
+function render() {
+  renderStats();
+  populateSelect(document.getElementById("roleFilter"), getRoles(), true, "All roles");
+  populateSelect(document.getElementById("statusFilter"), STATUSES.map(s => s.key), true, "All statuses");
+  populateSelect(document.getElementById("vendorFilter"), getVendors(), true, "All vendors");
+  populateSelect(document.getElementById("newStatus"), STATUSES.map(s => s.key), false);
+  populateSelect(document.getElementById("newRole"), getRoles(), false);
+  renderRolesPanel();
+  syncControls();
+  renderTable();
+  renderFooter();
+}
+
+document.getElementById("resumeFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  const candidate = candidates.find(c => c.id === pendingUploadCandidateId);
+  e.target.value = "";
+  if (!file || !candidate) return;
+  await uploadResume(candidate, file);
+  pendingUploadCandidateId = null;
+});
+document.getElementById("manageRolesBtn").addEventListener("click", () => {
+  const panel = document.getElementById("rolesPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+});
+document.getElementById("addRoleBtn").addEventListener("click", async () => {
+  const input = document.getElementById("newRoleName");
+  const name = input.value.trim();
+  if (!name) return;
+  if (roles.includes(name)) { alert("That role already exists."); return; }
+  roles.push(name);
+  await saveAll();
+  input.value = "";
+  render();
+});
+
+document.getElementById("search").addEventListener("input", (e) => {
+  filters.search = e.target.value;
+  render();
+});
+document.getElementById("roleFilter").addEventListener("change", (e) => {
+  filters.role = e.target.value;
+  render();
+});
+document.getElementById("statusFilter").addEventListener("change", (e) => {
+  filters.status = e.target.value;
+  render();
+});
+document.getElementById("vendorFilter").addEventListener("change", (e) => {
+  filters.vendor = e.target.value;
+  render();
+});
+document.getElementById("clearFilters").addEventListener("click", () => {
+  filters = { search: "", role: "all", status: "all", vendor: "all" };
+  render();
+});
+document.getElementById("addBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newName").value.trim();
+  const role = document.getElementById("newRole").value;
+  const vendor = document.getElementById("newVendor").value.trim();
+  const status = document.getElementById("newStatus").value;
+  const notes = document.getElementById("newNotes").value.trim();
+  if (!role) {
+    alert("Add a role first using Manage roles.");
+    return;
+  }
+  candidates.push({ id: uid(), name, role, vendor, status, notes, resume: null });
+  await saveAll();
+  document.getElementById("newName").value = "";
+  document.getElementById("newVendor").value = "";
+  document.getElementById("newNotes").value = "";
+  render();
+});
+
+loadAll();
+</script>
+</body>
+</html>
