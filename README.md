@@ -1,19 +1,35 @@
 # Hiring Tracker
 
-Production-ready, containerized candidate tracking application (L1 hiring pipeline).
+Production-ready, containerized (or bare-metal) candidate tracking application (L1 hiring pipeline).
 Track open roles, candidates, interview stages and resumes in one dashboard — with
 role-based access control and an admin portal.
 
 ## Features
 
 - **Dashboard** — pipeline stats (total, by status, by vendor, by role), search, filters, bulk delete
-- **Candidates** — add/edit/delete, inline stage ratings and feedback, resume upload/preview/download
+- **Pagination** — 20 candidates per page by default; choose 10 / 20 / 50 / 100 per page; prev/next + page numbers
+- **Candidates** — add/edit/delete, inline stage ratings with **half-stars** (1, 1.5, 2, ... 5), feedback, resume upload/preview/download
 - **Roles, Vendors, Statuses** — fully managed in the Admin portal (statuses drive the pipeline colors)
 - **Branding** — customizable site title/subtitle/eyebrow from the Admin portal
 - **Authentication** — sign in / sign up, session cookies (expire when the browser closes)
+- **Forgot password** — self-service reset via a security question (set it in Profile → Security Question)
 - **Role-based access** — `admin` (full access incl. user management), `manager` (edits dashboard data), `view` (read-only)
 - **Admin → Users** — create users, change roles, enable/disable, reset passwords, delete users, copy/share credentials
 - **Responsive UI** — works on desktop, tablet and phone (no mobile zoom, tap-friendly controls)
+
+## Quick Start
+
+| Method | Command (from project root) | Open in browser |
+|--------|------------------------------|-----------------|
+| **With Docker** (recommended) | `docker compose up -d --build` | **http://localhost:8800** |
+| **Without Docker** (Python) | `cd backend` → `pip install -r requirements.txt` → `uvicorn app.main:app --host 0.0.0.0 --port 8000` | **http://localhost:8000** |
+
+The default admin account is `admin@scholastic.local` / `Adm1n!123` (only when
+`ADMIN_EMAIL` is set in `docker-compose.yml` — change these in the Profile page after first login).
+
+> **Ports at a glance:** **Docker = 8800**, **no Docker = 8000**. The FastAPI app always listens on
+> port **8000** inside the container; Compose maps that to port **8800** on your machine
+> (`"8800:8000"`). Change the port by editing the **left** number — see [Changing the port](#changing-the-port).
 
 ## Technology
 
@@ -25,9 +41,9 @@ role-based access control and an admin portal.
 | Password hashing | PBKDF2-SHA256 (120 000 iterations, per-user salt) |
 | Sessions | DB-backed session cookie (`session`, HttpOnly, SameSite=Lax, 24 h server TTL) |
 | File storage | Resumes stored on disk under `/data/resumes/` |
-| Runtime | Docker + Docker Compose (multi-stage `python:3.11-slim` image) |
+| Runtime | Docker + Docker Compose (multi-stage `python:3.11-slim` image), or bare Python |
 
-### Backend packages
+### Backend packages (`backend/requirements.txt`)
 
 - `fastapi==0.115.12` — web framework
 - `uvicorn[standard]==0.34.2` — ASGI server
@@ -42,7 +58,7 @@ Browser  ──HTTP/HTTPS──▶  Uvicorn (FastAPI)  ──▶  SQLite (/data/
      └── static frontend ────────┘    resumes on disk ├── /data/resumes/
 ```
 
-The FastAPI server both serves the SPA frontend (`/`, `/admin`) and the JSON API
+The FastAPI server both serves the SPA frontend (`/`) and the JSON API
 (`/api/*`). All `POST/PUT/PATCH/DELETE` mutations are role-protected on the server
 side; the UI also hides actions the current role cannot perform.
 
@@ -56,9 +72,9 @@ side; the UI also hides actions the current role cannot perform.
 │   │   ├── models.py          # SQLModel tables (User, AuthSession, Candidate, ...)
 │   │   ├── security.py        # PBKDF2 hashing, password policy, role dependencies
 │   │   └── routers/
-│   │       ├── auth.py        # signup/login/logout + user management (admin)
-│   │       ├── candidates.py  # candidates CRUD + resume upload/download
-│   │       ├── stages.py      # interview stages per candidate
+│   │       ├── auth.py        # signup/login/logout, forgot-password + user management
+│   │       ├── candidates.py  # candidates CRUD (paginated) + resume upload/download
+│   │       ├── stages.py      # interview stages per candidate (half-star ratings)
 │   │       ├── roles.py       # roles CRUD (admin)
 │   │       ├── vendors.py     # vendors CRUD (admin)
 │   │       ├── statuses.py    # statuses CRUD (admin)
@@ -98,7 +114,18 @@ side; the UI also hides actions the current role cannot perform.
 
 4. Open **http://localhost:8800** in your browser.
 
+Docker container management:
+
+```powershell
+docker compose up -d          # start (no rebuild)
+docker compose logs -f        # follow logs
+docker compose down           # stop (data is kept)
+docker compose down -v        # stop AND delete all data (database + resumes)
+```
+
 ## Option B: Without Docker (Python)
+
+Runs on port **8000**.
 
 1. Install Python 3.11+ from https://www.python.org/ (check "Add python.exe to PATH").
 2. From the project root:
@@ -109,18 +136,12 @@ side; the UI also hides actions the current role cannot perform.
    uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
 
-   The app creates `./data` next to `backend\` for the SQLite DB and resumes
-   (on Windows `/data` is not writable, so it falls back to `./data` automatically).
-
 3. Open **http://localhost:8000**.
 
-To stop/start with Docker:
-
-```powershell
-docker compose up -d          # start
-docker compose down           # stop (data is kept)
-docker compose down -v        # stop AND delete all data (database + resumes)
-```
+> **Data folder:** the app first tries `/data` (not writable on Windows) and falls back
+> to `./data` **relative to the current working directory** — so running from `backend/`
+> creates `backend/data\` (SQLite DB + resumes). To keep data in a known place, set
+> `$env:DATA_DIR = "$PWD\data"` (or anywhere you like) before starting.
 
 ---
 
@@ -147,13 +168,15 @@ docker compose up -d --build
 
 ## Option B: Without Docker (Python)
 
+Runs on port **8000**.
+
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 mkdir -p ../data
-DATA_DIR=../data uvicorn app.main:app --host 0.0.0.0 --port 8000
+DATA_DIR=../data uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 # open http://localhost:8000
 ```
 
@@ -167,8 +190,8 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/hiring-tracker/backend
-ExecStart=/opt/hiring-tracker/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Environment=DATA_DIR=/opt/hiring-tracker/data
+ExecStart=/opt/hiring-tracker/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=unless-stopped
 
 [Install]
@@ -178,6 +201,7 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now hiringtracker
+# open http://localhost:8000
 ```
 
 ---
@@ -283,8 +307,8 @@ docker run -d --name caddy --restart unless-stopped \
 
 Create `Caddyfile` in your home directory and run with it:
 
-```bash
-# Caddyfile
+```ini
+# Caddyfile — the app listens on 8800 (host side of the compose mapping)
 hiringtracker.example.com {
     reverse_proxy 127.0.0.1:8800
 }
@@ -312,24 +336,29 @@ Back it up by copying the `data/` folder; it is NOT part of the container.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATA_DIR` | `/data` | Folder for the SQLite DB and resumes (volume-mounted in Compose) |
+| `DATA_DIR` | `/data` | Folder for the SQLite DB and resumes (volume-mounted in Compose on this value); falls back to `./data` if not writable |
 | `ADMIN_EMAIL` | *(empty)* | Email of the auto-created default admin; empty = skip, first sign-up becomes admin |
 | `ADMIN_NAME` | `Admin` | Display name of the default admin |
 | `ADMIN_PASSWORD` | *(empty)* | Password of the default admin (must meet the policy; invalid values are skipped) |
 
 ## Changing the port
 
-With Docker, change only the **left** number in `docker-compose.yml` (the host side);
-the container listens on 8000 internally:
+The FastAPI app always listens on **port 8000** (the `uvicorn` CMD in the Dockerfile).
 
-```yaml
-ports:
-  - "8800:8000"   # host 8800 → container 8000
-```
+- **With Docker:** change only the **left** number in `docker-compose.yml` (the host side);
+  the app stays on 8000 inside the container:
 
-```bash
-docker compose up -d      # recreates the container; no rebuild needed
-```
+  ```yaml
+  ports:
+    - "8800:8000"   # host 8800 → container 8000 (open http://localhost:8800)
+  ```
+
+  ```bash
+  docker compose up -d      # recreates the container; no rebuild needed
+  ```
+
+- **Without Docker:** pass `--port <N>` to uvicorn, e.g. `uvicorn app.main:app --port 8800`
+  (or use port 80 with a reverse proxy).
 
 ## Accounts, roles and policy
 
@@ -342,12 +371,14 @@ docker compose up -d      # recreates the container; no rebuild needed
 - Password policy: **8+ characters** with at least one uppercase letter, one lowercase letter and one digit.
 - Sessions expire when the browser closes (session cookie) and server-side after 24 h; resetting/disabling an account signs that user out everywhere.
 - Passwords are stored as **PBKDF2-SHA256 hashes** — they can never be viewed again, only reset.
+- **Forgot password:** users set a security question in **Profile → Security Question**; the login page's
+  "Forgot your password?" link verifies email → question → answer and resets the password (revokes all sessions).
 
 ---
 
 # API Reference
 
-All endpoints except `POST /api/auth/signup` and `POST /api/auth/login` require the
+All endpoints except auth-signup/login and the forgot-password flow require the
 session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 
 ## Authentication
@@ -357,9 +388,14 @@ session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 | POST | `/api/auth/signup` | Create account (first-ever user becomes admin) |
 | POST | `/api/auth/login` | Sign in, sets session cookie |
 | POST | `/api/auth/logout` | Sign out, revokes session |
-| GET | `/api/auth/me` | Current user |
+| GET | `/api/auth/me` | Current user (includes `has_security_question`) |
 | PUT | `/api/auth/me/profile` | Update own name/email |
 | PUT | `/api/auth/me/password` | Change own password (requires current password) |
+| GET | `/api/auth/security-questions` | List the preset security questions |
+| GET | `/api/auth/me/security-question` | Own security question (auth required) |
+| PUT | `/api/auth/me/security-question` | Set/change own security question + answer |
+| POST | `/api/auth/forgot-question` | Public: returns a user's security question for their email |
+| POST | `/api/auth/forgot-password` | Public: verify question answer, set a new password, revoke sessions |
 
 ## User management (admin)
 
@@ -375,9 +411,9 @@ session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/candidates` | List (filters: `role_id`, `status`, `vendor`, `search`) |
+| GET | `/api/candidates` | Paginated list — returns `{"items": [...], "total": N}`; params: `role_id`, `status`, `vendor`, `search`, `page` (default 1), `page_size` (default 20, max 500) |
 | GET | `/api/candidates/vendors` | Distinct vendor names |
-| GET | `/api/candidates/export?fmt=json\|csv` | Export |
+| GET | `/api/candidates/export?fmt=json\|csv` | Export (all rows) |
 | POST | `/api/candidates` | Create |
 | PUT | `/api/candidates/{id}` | Full update |
 | PATCH | `/api/candidates/{id}` | Partial update (inline editing) |
@@ -393,7 +429,7 @@ session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 |--------|----------|-------------|
 | GET | `/api/candidates/{id}/stages` | List |
 | POST | `/api/candidates/{id}/stages` | Add stage |
-| PUT | `/api/stages/{id}` | Update (rating, feedback, completed) |
+| PUT | `/api/stages/{id}` | Update (rating 1–5 in 0.5 steps, feedback, completed) |
 | DELETE | `/api/stages/{id}` | Delete |
 
 ## Roles, Vendors, Statuses (admin mutations)
@@ -424,10 +460,11 @@ session cookie. Mutations are role-gated (`admin` or `manager` per resource).
 
 | Symptom | Fix |
 |---------|-----|
-| Site not reachable on a chosen port | The compose mapping must be `host-port:8000` (container listens on 8000); recreate with `docker compose up -d` |
-| Root directory already in use error | The container is listening on port 8800/8000 on the host; stop it or change the host port |
-| Login page keeps showing logout/profile icons | Hard refresh (Ctrl+F5); cache-busted assets are `app.js?v=19`, `styles.css?v=9` |
-| Can't log in after a password reset | Passwords are hashed — use "Reset pw" in Admin → Users and share the new password (shown once) |
+| Site not reachable on a chosen port | With Docker the mapping must be `host-port:8000` (the app listens on 8000); e.g. `"8800:8000"` → http://localhost:8800. Without Docker pass `--port` to uvicorn. |
+| Port already in use error | Something is already bound to the host port; stop it or change the host port on the left side of the compose mapping |
+| Login page shows stale layout | Hard refresh (Ctrl+F5); cache-busted assets are `app.js?v=27`, `styles.css?v=14` |
+| Can't log in after a password reset | Passwords are hashed — use Admin → Users → "Reset pw" and share the new password (shown once) |
+| Forgot-password link says "no security question set" | That account never set one — use Admin → Users → Reset pw, or have the user set it in Profile |
 | Data volume "not found" | Storage lives in `data/` next to `docker-compose.yml`; mount the same folder across rebuilds |
 | EC2 port unreachable | Open TCP 8800 (or 80) in the EC2 Security Group; check `docker compose ps` under `ubuntu` (or `sudo docker compose ps`) |
 | First sign-up isn't admin | An account already exists or `ADMIN_EMAIL` is configured; use the configured admin instead |
