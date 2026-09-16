@@ -10,7 +10,7 @@ services:
       # Default admin account. Created automatically the first time the app
       # starts with these set and no account for ADMIN_EMAIL exists yet.
       # Change ADMIN_NAME / ADMIN_PASSWORD after the first login (Profile page).
-      - ADMIN_EMAIL=admin@scholastic.local
+      - ADMIN_EMAIL=admin@schlastc.local
       - ADMIN_NAME=Admin
       - ADMIN_PASSWORD=Adm1n!123
     restart: unless-stopped
